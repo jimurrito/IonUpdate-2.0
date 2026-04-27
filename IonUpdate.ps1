@@ -1,43 +1,91 @@
 <#PSScriptInfo
-
-.VERSION 1.0
-
+.VERSION 2.0
 .GUID 2199fa97-80c8-4932-bdfe-c361b3e72054
-
 .AUTHOR Jimurrito
-
 .COMPANYNAME Virtrillo Software Solutions
-
 .COPYRIGHT (c) 2024 Jimurrito. All rights reserved.
-
 .TAGS @("Ionos", "Domain", "API", "SDK", "IONOS", "Powershell", "Module", "DNS", "Management", "Zone", "1&1", "Update")
-
 .LICENSEURI
-
 .PROJECTURI
-
 .ICONURI
-
 .EXTERNALMODULEDEPENDENCIES
-
 .REQUIREDSCRIPTS
-
 .EXTERNALSCRIPTDEPENDENCIES
-
 .RELEASENOTES
-
-
 .PRIVATEDATA
-
 #>
 
 <#
+.SYNOPSIS
+    Keeps IONOS DNS A records up to date with a given IP address.
 
 .DESCRIPTION
- Script to keep IONOS DNS records up-to-date with given IP.
+    Uses the IonMod PowerShell module to communicate with the IONOS DNS API.
+    Given one or more DNS A record names and an IP address, the script will
+    update any records whose IP does not match. If no IP is provided, the
+    client's current public IP is used. Optionally, missing records can be
+    created with the -Create switch.
 
+    Authentication is handled either by passing -PublicPrefix and -Secret
+    directly, or by providing a key file via -KeyPath in the format
+    'PublicPrefix.Secret'.
+
+.PARAMETER Records
+    One or more DNS A record names to update. Accepts a single string or an
+    array declared with parentheses e.g. ("name.domain.com","foo.domain.com").
+
+.PARAMETER IP
+    The IP address to assign to all provided DNS records. If omitted, the
+    script resolves the client's current public IP automatically.
+
+.PARAMETER KeyPath
+    Path to a key file containing IONOS credentials in the format
+    'PublicPrefix.Secret' on a single line. Use as an alternative to
+    providing -PublicPrefix and -Secret directly.
+
+.PARAMETER PublicPrefix
+    The public prefix portion of an IONOS API credential. Must be paired
+    with -Secret.
+
+.PARAMETER Secret
+    The secret portion of an IONOS API credential. Must be paired with
+    -PublicPrefix.
+
+.PARAMETER Create
+    When specified, the script will create any DNS A records that do not
+    already exist in IONOS. Without this switch, missing records are skipped.
+
+.EXAMPLE
+    ./IonUpdate.ps1 -PublicPrefix XXXXX -Secret XXXXX -Records 'name.domain.com'
+
+    Updates a single DNS record with the client's current public IP.
+
+.EXAMPLE
+    ./IonUpdate.ps1 -PublicPrefix XXXXX -Secret XXXXX -Records 'name.domain.com' -IP '1.1.1.1'
+
+    Updates a single DNS record with a custom IP address.
+
+.EXAMPLE
+    ./IonUpdate.ps1 -KeyPath './ion.key' -Records 'name.domain.com'
+
+    Updates a single DNS record using credentials stored in a key file.
+
+.EXAMPLE
+    ./IonUpdate.ps1 -PublicPrefix XXXXX -Secret XXXXX -Records ("name.domain.com","foobar.domain.com")
+
+    Updates multiple DNS records with the client's current public IP.
+
+.EXAMPLE
+    ./IonUpdate.ps1 -PublicPrefix XXXXX -Secret XXXXX -Records ("name.domain.com","foobar.domain.com") -Create
+
+    Updates multiple DNS records and creates any that do not already exist in IONOS.
+
+.NOTES
+    Requires the IonMod module, which the script will install automatically if not present.
+    API credentials must be generated from the IONOS developer portal.
+    See: https://developer.hosting.ionos.com/docs/getstarted
 #>
-# Updates bulk IONOS domains
+
 param (
     # target domain(s)
     [Parameter(Mandatory = $true)]
