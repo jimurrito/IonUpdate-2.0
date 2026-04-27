@@ -43,45 +43,74 @@ param (
     [Parameter(Mandatory = $true)]
     $Records,
     # Desired IP - if $null, gets public ip of client
-    $IP = $null,
+    $IP,
     # IONOS keys
-    [Parameter(Mandatory = $true)]
+    [string]$KeyPath,
     [string]$PublicPrefix,
-    [Parameter(Mandatory = $true)]
     [string]$Secret,
     # Create missing
     [switch]$Create
 )
 #
+# Ensure some key value is set
+if (-not ($PublicPrefix -and $Secret -or $KeyPath))
+{
+    Write-Error "Script must have either '-PublicPrefix' & '-Secret' or '-KeyPath' to work as expected."
+    exit
+}
+#
+# Get IONOS creds prior to anything else
+if ($KeyPath)
+{
+    # Kills run if get-content fails
+    $PublicPrefix, $Secret = (Get-Content -path $KeyPath -ErrorAction stop) -split "\."
+}
+#
 # Import local library
 Import-Module -Name "$PSScriptRoot/IonUpdate.psm1"
 #
 # Installs IonMod Module
-Confirm-IonModule
+#Confirm-IonModule
+if (!(get-module -Name ionmod))
+{
+    Install-Module ionmod -Force -AcceptLicense
+    Import-Module ionmod
+}
 #
-# gets token
-$Token = New-IonToken -PublicPrefix $PublicPrefix -Secret $Secret
+# Logs in and stores creds in static class
+Connect-Ion -PublicPrefix $PublicPrefix -Secret $Secret
 #
 # IP check
-$IP = if ($null -eq $IP) { Get-PublicIp } else { $IP }
+# Grab if not defined
+$IP = if (-not $IP)
+{
+    Get-PublicIp
+} else
+{
+    $IP
+}
 Write-Host "Updating IONOS with IP:[$IP]."
 #
 # Get lists of top level domains from input list
+# parses the target domains provided and parses out the TLD
 $TLDomains = $Records | ForEach-Object { Get-TopLevelDomain $_ } | Sort-Object -Unique
 Write-Host ("[{0}] Target Zone(s)." -f $TLDomains.Count)
 #
 # get zones from IONOS
-$Zones = Get-IonZone -Token $Token | Where-Object { $TLDomains -contains $_.name }
+$AllZones = Get-IonZone
+# $AllZones is used as Get-IonZone seems to have issues with where-object when directly piped
+$Zones = $AllZones | Where-Object { $TLDomains -contains $_.name }
 Write-Host ("Found [{0}] existing Zone(s) in scope." -f @($Zones).Count)
 #
 # Work on each zone
-foreach ($z in $Zones) {
+foreach ($z in $Zones)
+{
     Write-Host ("Working on Zone:[{0}]." -f $z.name)
     #
     # <Pull Records>
     #
     # Get records for the zone
-    $IONRecords_ALL = ($Token | Get-IonZone -ZoneId $z.id).records
+    $IONRecords_ALL = (Get-IonZone -ZoneId $z.id).records
     $MET_Total_Recs = @($IONRecords_ALL).Count # get count for metric output
     #
     # <Sort Records>
@@ -102,7 +131,8 @@ foreach ($z in $Zones) {
     # <No in-scope records>
     #
     # Check if there are any records left for this zone (created or updated)
-    if (!($IONRecords_tb_Updated) -and !($IONRecords_tb_Created)) {
+    if (!($IONRecords_tb_Updated) -and !($IONRecords_tb_Created))
+    {
         Write-Host ("Zone:[{0}] is already up-to-date." -f $z.name)
         # No records left, iter to next zone.
         continue
@@ -114,33 +144,36 @@ foreach ($z in $Zones) {
     # Updates records that match the list provided at runtime.
     # Due to how IONOS's endpoints work for Set-IonZone, we need to post back ALL records we want in the zone.
     # Any left off will be removed from the zone.
-    if ($IONRecords_tb_Updated) {
+    if ($IONRecords_tb_Updated)
+    {
         Write-Host "Found [$MET_Update_Recs/$MET_Total_Recs] existing Record(s) need updating."
         # Update IPs for ONLY records in scope.
-        $IONRecords_ALL | Where-Object { $IONRecords_tb_Updated -contains $_ } | ForEach-Object { $_.content = $IP }       
+        $IONRecords_ALL | Where-Object { $IONRecords_tb_Updated -contains $_ } | ForEach-Object { $_.content = $IP }
         # Post back to IONOS
-        $Token | Set-IonZone -ZoneId $z.id -Body $IONRecords_ALL
+        Set-IonZone -ZoneId $z.id -Records $IONRecords_ALL
         Write-Host ("Pushed update to Zone:[{0}]." -f $z.name)
-    }
-    else {
+    } else
+    {
         Write-Host ("No existing records to update in Zone:[{0}]." -f $z.name)
     }
     #
     #
     # Create records
-    if ($IONRecords_tb_Created -and $Create) {
+    if ($IONRecords_tb_Created -and $Create)
+    {
         Write-Host "[$MET_Create_Recs] Record(s) need to be created." -ForegroundColor Yellow
         # Creates new objects
         $IONRecords_Created = $IONRecords_tb_Created | ForEach-Object {
             New-IonRecordObj -ZoneName $z.name -name $_ -Content $IP
-        } 
+        }
         # Post new records to IONOS
-        $Created_Recs = $Token | New-IonRecord -ZoneId $z.id -Body $IONRecords_Created
+        $Created_Recs = New-IonRecord -ZoneId $z.id -Body $IONRecords_Created
         $MET_Created = @($Created_Recs).Count
         Write-Host "[$MET_Created/$MET_Create_Recs] Record(s) have been added to the Zone." -ForegroundColor Yellow
     }
     # Need to create, but functionality is disabled.
-    elseif ($IONRecords_tb_Created -and !($Create)) {
+    elseif ($IONRecords_tb_Created -and !($Create))
+    {
         Write-Host "[$MET_Create_Recs] Record(s) could not be found in Zone. Create functionality is disabled, missing records will be skipped." -ForegroundColor Yellow
         Write-Host "Record(s): $IONRecords_tb_Created" -ForegroundColor Yellow
     }

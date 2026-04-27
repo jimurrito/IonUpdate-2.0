@@ -16,7 +16,7 @@
 #>
 function Confirm-IonModule {
     if (!(get-module -Name ionmod)) {
-        Install-Module ionmod -Force
+        Install-Module ionmod -Force -AcceptLicense
         Import-Module ionmod
     }
 }
@@ -33,7 +33,7 @@ function Confirm-IonModule {
     Get-PublicIp
 #>
 function Get-PublicIp {
-    return (Invoke-WebRequest https://ifconfig.me).content
+    return (Invoke-WebRequest https://ifconfig.me/ip).content
 }
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 <#
