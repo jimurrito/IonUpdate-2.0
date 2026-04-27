@@ -26,7 +26,7 @@
           cat > "$out/bin/ion-update" << EOF
           #!/usr/bin/env bash
           export PSModulePath="$moduleDir:\$PSModulePath"
-          ${lib.getExe pkgs.powershell} -NonInteractive -Command "./IonUpdate.ps1 \$@"
+          ${lib.getExe pkgs.powershell} -NonInteractive -Command "$moduleDir/IonUpdate.ps1 \$@"
           EOF
           chmod +x "$out/bin/ion-update"
         '';
