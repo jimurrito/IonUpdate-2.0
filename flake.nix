@@ -1,14 +1,15 @@
 {
-  description = "IonUpdate PowerShell Script+Module";
+  description = "IonUpdate PowerShell Script";
+
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   };
 
-  outputs =
-    { nixpkgs, lib }:
+  outputs = { self, nixpkgs }:
     let
       system = "x86_64-linux";
       pkgs = nixpkgs.legacyPackages.${system};
+      lib = nixpkgs.lib;
     in
     {
       packages.${system}.default = pkgs.stdenv.mkDerivation {
@@ -21,7 +22,6 @@
           moduleDir="$out/module"
           mkdir -p "$moduleDir"
           cp IonUpdate.ps1 IonUpdate.psd1 IonUpdate.psm1 "$moduleDir/"
-
           mkdir -p "$out/bin"
           cat > "$out/bin/ion-update" << EOF
           #!/usr/bin/env bash
@@ -30,6 +30,12 @@
           EOF
           chmod +x "$out/bin/ion-update"
         '';
+      };
+
+      nixosModules.default = { pkgs, ... }: {
+        environment.systemPackages = [
+          self.packages.${pkgs.system}.default
+        ];
       };
     };
 }
