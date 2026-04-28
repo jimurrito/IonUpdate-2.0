@@ -12,7 +12,7 @@
       lib = nixpkgs.lib;
     in
     {
-      packages.${system}.package = pkgs.stdenv.mkDerivation {
+      packages.${system}.default = pkgs.stdenv.mkDerivation {
         pname = "IonUpdate";
         meta.mainProgram = "ion-update";
         version = "0.1.0";
@@ -41,7 +41,7 @@
         }:
         let
           pkgsystem = pkgs.stdenv.hostPlatform.system;
-          mainpackage = self.packages.${pkgsystem}.package;
+          mainpackage = self.packages.${pkgsystem}.default;
         in
         {
           config.environment.systemPackages = [
@@ -59,7 +59,7 @@
         }:
         let
           pkgsystem = pkgs.stdenv.hostPlatform.system;
-          mainpackage = self.packages.${pkgsystem}.package;
+          mainpackage = self.packages.${pkgsystem}.default;
           ion-nixops = config.services.ion-update;
         in
         {
