@@ -83,6 +83,9 @@
               systemd = {
                 services.ion-update = {
                   description = "IonUpdate service";
+                  path = with pkgs; [
+                    powershell
+                  ];
                   serviceConfig = with lib; {
                     Type = "oneshot";
                     User = "ion-update";
