@@ -92,11 +92,13 @@
             ];
             # rootless identity
             # Requires home dir as this needs an interactive shell
+            # If we can port `ionmod` module to a derivation, this can go back to `isSystemUser = true;`
             users = {
               groups.ion-update = { };
               users.ion-update = {
                 enable = true;
                 group = "ion-update";
+                # isSystemUser = true;
                 isNormalUser = true;
                 linger = true;
                 createHome = true;
