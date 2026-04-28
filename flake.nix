@@ -85,13 +85,11 @@
           };
           #
           # config to be implemented via the `options`
-          config = {
+          config = lib.mkIf ion-nixops.enable {
             # Imports package and runs the install steps
             environment.systemPackages = [
               mainpackage
             ];
-          }
-          // lib.mkIf ion-nixops.enable {
             # rootless identity
             # Requires home dir as this needs an interactive shell
             users = {
