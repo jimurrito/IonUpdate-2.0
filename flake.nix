@@ -68,49 +68,48 @@
           };
           #
           # config to be implemented via the `options`
-          config =
-            lib.mkIf ion-nixops.enable {
-              # rootless identity
-              users = {
-                groups.ion-update = { };
-                users.ion-update = {
-                  enable = true;
-                  group = "ion-update";
-                  isSystemUser = true;
-                };
+          config = {
+            # Imports package and runs the install steps
+            environment.systemPackages = [
+              mainpackage
+            ];
+          }
+          // lib.mkIf ion-nixops.enable {
+            # rootless identity
+            users = {
+              groups.ion-update = { };
+              users.ion-update = {
+                enable = true;
+                group = "ion-update";
+                isSystemUser = true;
               };
-              # systemd service
-              systemd = {
-                services.ion-update = {
-                  description = "IonUpdate service";
-                  path = with pkgs; [
-                    powershell
-                  ];
-                  serviceConfig = with lib; {
-                    Type = "oneshot";
-                    User = "ion-update";
-                    Group = "ion-update";
-                    ExecStart = ''
-                      ${getExe mainpackage} -Create -KeyPath ${ion-nixops.keyPath} -Records "('${concatStringsSep "', '" ion-nixops.records}')"
-                    '';
-                  };
-                };
-                timers.ion-update = {
-                  description = "IonUpdate timer";
-                  wantedBy = [ "timers.target" ];
-                  timerConfig = {
-                    OnCalendar = ion-nixops.interval;
-                    Persistent = true;
-                  };
-                };
-              };
-            }
-            // {
-              # Imports package and runs the install steps
-              environment.systemPackages = [
-                mainpackage
-              ];
             };
+            # systemd service
+            systemd = {
+              services.ion-update = {
+                description = "IonUpdate service";
+                path = with pkgs; [
+                  powershell
+                ];
+                serviceConfig = with lib; {
+                  Type = "oneshot";
+                  User = "ion-update";
+                  Group = "ion-update";
+                  ExecStart = ''
+                    ${getExe mainpackage} -Create -KeyPath ${ion-nixops.keyPath} -Records "('${concatStringsSep "', '" ion-nixops.records}')"
+                  '';
+                };
+              };
+              timers.ion-update = {
+                description = "IonUpdate timer";
+                wantedBy = [ "timers.target" ];
+                timerConfig = {
+                  OnCalendar = ion-nixops.interval;
+                  Persistent = true;
+                };
+              };
+            };
+          };
         };
     };
 }
