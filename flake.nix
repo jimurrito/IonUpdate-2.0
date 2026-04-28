@@ -36,22 +36,6 @@
       #
       nixosModules.default =
         {
-          pkgs,
-          ...
-        }:
-        let
-          pkgsystem = pkgs.stdenv.hostPlatform.system;
-          mainpackage = self.packages.${pkgsystem}.default;
-        in
-        {
-          config.environment.systemPackages = [
-            mainpackage
-          ];
-        };
-      #
-      #
-      nixosModules.service =
-        {
           config,
           lib,
           pkgs,
