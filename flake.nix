@@ -34,6 +34,23 @@
       };
       #
       #
+      nixosModules.package =
+        {
+          pkgs,
+          ...
+        }:
+        let
+          pkgsystem = pkgs.stdenv.hostPlatform.system;
+          mainpackage = self.packages.${pkgsystem}.default;
+        in
+        {
+          # config to be implemented via the `options`
+          config.environment.systemPackages = [
+            mainpackage
+          ];
+        };
+      #
+      #
       nixosModules.default =
         {
           config,
