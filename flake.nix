@@ -14,6 +14,7 @@
     {
       packages.${system}.default = pkgs.stdenv.mkDerivation {
         pname = "IonUpdate";
+        meta.mainProgram = "ion-update";
         version = "0.1.0";
         src = ./.;
         dontBuild = true;
@@ -40,6 +41,9 @@
           pkgs,
           ...
         }:
+        let
+        pkgsystem = pkgs.stdenv.hostPlatform.system;
+        in
         {
           # Options for services overlay
           options.services.ion-update = with lib; {
@@ -60,7 +64,7 @@
           config = lib.mkIf config.services.ion-update.enable {
             # Imports package and runs the install steps
             environment.systemPackages = [
-              self.packages.${pkgs.system}.default
+              self.packages.${pkgsystem}.default
             ];
             # rootless identity
             users = {
@@ -79,7 +83,7 @@
                   Type = "oneshot";
                   User = "ion-update";
                   Group = "ion-update";
-                  ExecStart = "${lib.getExe self.packages.${pkgs.system}.default}";
+                  ExecStart = "${lib.getExe self.packages.${pkgsystem}.default}";
                 };
               };
               timers.ion-update = {
