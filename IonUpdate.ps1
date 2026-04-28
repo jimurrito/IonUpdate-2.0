@@ -100,6 +100,9 @@ param (
     [switch]$Create
 )
 #
+# 
+write-Host "Start up"
+#
 # Ensure some key value is set
 if (-not ($PublicPrefix -and $Secret -or $KeyPath))
 {
@@ -128,6 +131,10 @@ if (!(get-module -Name ionmod))
 # Logs in and stores creds in static class
 Connect-Ion -PublicPrefix $PublicPrefix -Secret $Secret
 #
+# Verbose
+Write-Host ("[{0}] records provided." -f $Records.Count)
+Write-Host ("[{0}]" -f ($Records -join ", "))
+# 
 # IP check
 # Grab if not defined
 $IP = if (-not $IP)
