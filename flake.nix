@@ -12,7 +12,7 @@
       lib = nixpkgs.lib;
     in
     {
-      packages.${system}.default = pkgs.stdenv.mkDerivation {
+      packages.${system}.package = pkgs.stdenv.mkDerivation {
         pname = "IonUpdate";
         meta.mainProgram = "ion-update";
         version = "0.1.0";
@@ -34,6 +34,22 @@
       };
       #
       #
+      nixosModules.default =
+        {
+          pkgs,
+          ...
+        }:
+        let
+          pkgsystem = pkgs.stdenv.hostPlatform.system;
+          mainpackage = self.packages.${pkgsystem}.package;
+        in
+        {
+          config.environment.systemPackages = [
+            mainpackage
+          ];
+        };
+      #
+      #
       nixosModules.service =
         {
           config,
@@ -42,12 +58,19 @@
           ...
         }:
         let
-        pkgsystem = pkgs.stdenv.hostPlatform.system;
+          pkgsystem = pkgs.stdenv.hostPlatform.system;
+          mainpackage = self.packages.${pkgsystem}.package;
+          ion-nixops = config.services.ion-update;
         in
         {
           # Options for services overlay
           options.services.ion-update = with lib; {
             enable = mkEnableOption "IonUpdate scheduled service";
+            keyPath = mkOption {
+              type = types.str;
+              default = "/root/ionos-key";
+              description = "Path to the public and private key provided by IONOS. Should be in '<PublicKey>.<Secret>' format.";
+            };
             dnsNames = mkOption {
               type = types.listOf types.str;
               default = [ ];
@@ -61,41 +84,44 @@
           };
           #
           # config to be implemented via the `options`
-          config = lib.mkIf config.services.ion-update.enable {
-            # Imports package and runs the install steps
-            environment.systemPackages = [
-              self.packages.${pkgsystem}.default
-            ];
-            # rootless identity
-            users = {
-              groups.ion-update = { };
-              users.ion-update = {
-                enable = true;
-                group = "ion-update";
-                isSystemUser = true;
-              };
-            };
-            # systemd service
-            systemd = {
-              services.ion-update = {
-                description = "IonUpdate service";
-                serviceConfig = {
-                  Type = "oneshot";
-                  User = "ion-update";
-                  Group = "ion-update";
-                  ExecStart = "${lib.getExe self.packages.${pkgsystem}.default}";
+          config =
+            lib.mkIf ion-nixops.enable {
+              # rootless identity
+              users = {
+                groups.ion-update = { };
+                users.ion-update = {
+                  enable = true;
+                  group = "ion-update";
+                  isSystemUser = true;
                 };
               };
-              timers.ion-update = {
-                description = "IonUpdate timer";
-                wantedBy = [ "timers.target" ];
-                timerConfig = {
-                  OnCalendar = config.services.ion-update.interval;
-                  Persistent = true;
+              # systemd service
+              systemd = {
+                services.ion-update = {
+                  description = "IonUpdate service";
+                  serviceConfig = {
+                    Type = "oneshot";
+                    User = "ion-update";
+                    Group = "ion-update";
+                    ExecStart = "${lib.getExe mainpackage} -KeyPath ${ion-nixops.keyPath}";
+                  };
+                };
+                timers.ion-update = {
+                  description = "IonUpdate timer";
+                  wantedBy = [ "timers.target" ];
+                  timerConfig = {
+                    OnCalendar = ion-nixops.interval;
+                    Persistent = true;
+                  };
                 };
               };
+            }
+            // {
+              # Imports package and runs the install steps
+              environment.systemPackages = [
+                mainpackage
+              ];
             };
-          };
         };
     };
 }
