@@ -55,10 +55,10 @@
               default = "/root/ionos-key";
               description = "Path to the public and private key provided by IONOS. Should be in '<PublicKey>.<Secret>' format.";
             };
-            dnsNames = mkOption {
+            records = mkOption {
               type = types.listOf types.str;
               default = [ ];
-              description = "List of DNS names that need tracking";
+              description = "List of DNS records that need tracking";
             };
             interval = mkOption {
               type = types.str;
@@ -83,11 +83,13 @@
               systemd = {
                 services.ion-update = {
                   description = "IonUpdate service";
-                  serviceConfig = {
+                  serviceConfig = with lib; {
                     Type = "oneshot";
                     User = "ion-update";
                     Group = "ion-update";
-                    ExecStart = "${lib.getExe mainpackage} -KeyPath ${ion-nixops.keyPath}";
+                    ExecStart = ''
+                      ${getExe mainpackage} -Create -KeyPath ${ion-nixops.keyPath} -Records "('${concatStringsSep "', '" ion-nixops.records}')"
+                    '';
                   };
                 };
                 timers.ion-update = {

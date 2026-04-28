@@ -212,10 +212,10 @@ foreach ($z in $Zones)
         Write-Host "[$MET_Create_Recs] Record(s) need to be created." -ForegroundColor Yellow
         # Creates new objects
         $IONRecords_Created = $IONRecords_tb_Created | ForEach-Object {
-            New-IonRecordObj -ZoneName $z.name -name $_ -Content $IP
+            New-IonRecordObj -ZoneName $z.name -name $_ -Content $IP -Type "A"
         }
         # Post new records to IONOS
-        $Created_Recs = New-IonRecord -ZoneId $z.id -Body $IONRecords_Created
+        $Created_Recs = New-IonRecord -ZoneId $z.id -Records $IONRecords_Created
         $MET_Created = @($Created_Recs).Count
         Write-Host "[$MET_Created/$MET_Create_Recs] Record(s) have been added to the Zone." -ForegroundColor Yellow
     }
