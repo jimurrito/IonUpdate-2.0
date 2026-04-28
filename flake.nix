@@ -82,6 +82,7 @@
               users.ion-update = {
                 enable = true;
                 group = "ion-update";
+                isNormalUser = true;
                 linger = true;
                 createHome = true;
                 home = "/var/ion-update";
