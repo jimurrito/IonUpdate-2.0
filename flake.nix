@@ -76,12 +76,27 @@
           }
           // lib.mkIf ion-nixops.enable {
             # rootless identity
+            # Requires home dir as this needs an interactive shell
             users = {
               groups.ion-update = { };
               users.ion-update = {
                 enable = true;
                 group = "ion-update";
-                isSystemUser = true;
+                linger = true;
+                createHome = true;
+                home = "/var/ion-update";
+                subUidRanges = [
+                  {
+                    startUid = 100000;
+                    count = 65536;
+                  }
+                ];
+                subGidRanges = [
+                  {
+                    startGid = 100000;
+                    count = 65536;
+                  }
+                ];
               };
             };
             # systemd service
