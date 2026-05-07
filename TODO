@@ -1,3 +1,2 @@
 # TODO List
 
-[ ] Migrate IonMod to a nix derivation so I can make the systemd user a service user 

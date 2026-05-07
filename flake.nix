@@ -1,11 +1,16 @@
 {
   description = "IonUpdate PowerShell Service";
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
+    test-vm.url = "github:jimurrito/nixos-test-vm";
   };
   #
   outputs =
-    { self, nixpkgs }:
+    {
+      self,
+      nixpkgs,
+      test-vm,
+    }:
     let
       system = "x86_64-linux";
       pkgs = nixpkgs.legacyPackages.${system};
@@ -93,6 +98,7 @@
             # rootless identity
             # Requires home dir as this needs an interactive shell
             # If we can port `ionmod` module to a derivation, this can go back to `isSystemUser = true;`
+            # tested again on 5/17. Old me was not bluffing. issue with install-module use.
             users = {
               groups.ion-update = { };
               users.ion-update = {
@@ -144,5 +150,35 @@
             };
           };
         };
+      #
+      #
+      # TestVM
+      nixosConfigurations =
+        let
+          testConfig =
+            { ... }:
+            {
+              services.ion-update = {
+                enable = true;
+                keyPath = "/etc/ionos-key";
+                records = [
+                  "*.immerhouse.com"
+                ];
+                interval = "daily";
+              };
+            };
+        in
+        {
+          test-vm = nixpkgs.lib.nixosSystem {
+            system = "x86_64-linux";
+            modules = [
+              test-vm.baselineConfig
+              # test config
+              self.nixosModules.default
+              testConfig
+            ];
+          };
+        };
+      #
     };
 }
