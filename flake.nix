@@ -12,10 +12,18 @@
       test-vm,
     }:
     let
+      # Inject powershell.config.json into $PSHOME
+      # Without this, powershell is verbose log a bunch of random crap when used in a systemd service.
+      quietPowershell = pkgs.powershell.overrideAttrs (old: {
+        postInstall = (old.postInstall or "") + ''
+          echo '{"LogLevel":"Critical"}' > $out/share/powershell/powershell.config.json
+        '';
+      });
       system = "x86_64-linux";
       pkgs = nixpkgs.legacyPackages.${system};
       lib = nixpkgs.lib;
     in
+    with lib;
     {
       packages.${system}.default = pkgs.stdenv.mkDerivation {
         pname = "IonUpdate";
@@ -32,7 +40,7 @@
           cat > "$out/bin/ion-update" << EOF
           #!/usr/bin/env bash
           export PSModulePath="$moduleDir:\$PSModulePath"
-          ${lib.getExe pkgs.powershell} -NonInteractive -Command "$moduleDir/IonUpdate.ps1 \$@"
+          ${getExe quietPowershell} -NonInteractive -Command "$moduleDir/IonUpdate.ps1 \$@"
           EOF
           chmod +x "$out/bin/ion-update"
         '';
@@ -127,8 +135,8 @@
             systemd = {
               services.ion-update = {
                 description = "IonUpdate service";
-                path = with pkgs; [
-                  powershell
+                path = [
+                  quietPowershell
                 ];
                 serviceConfig = with lib; {
                   Type = "oneshot";
