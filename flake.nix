@@ -1,8 +1,16 @@
 {
   description = "IonUpdate PowerShell Service";
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
-    test-vm.url = "github:jimurrito/nixos-test-vm";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
+    test-vm = {
+      url = "github:jimurrito/nixos-test-vm";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    # can not use espresso as it will cause a recursive error for users who use sonarr-cleanup via espresso
+    qpwsh = {
+      url = "git+https://forgejo.immerhouse.com/jimurrito/quiet-powershell";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
   #
   outputs =
@@ -10,60 +18,62 @@
       self,
       nixpkgs,
       test-vm,
+      qpwsh,
     }:
     let
-      # Inject powershell.config.json into $PSHOME
-      # Without this, powershell is verbose log a bunch of random crap when used in a systemd service.
-      quietPowershell = pkgs.powershell.overrideAttrs (old: {
-        postInstall = (old.postInstall or "") + ''
-          echo '{"LogLevel":"Critical"}' > $out/share/powershell/powershell.config.json
-        '';
-      });
-      system = "x86_64-linux";
-      pkgs = nixpkgs.legacyPackages.${system};
+      #
       lib = nixpkgs.lib;
-    in
-    with lib;
-    {
-      packages.${system}.default = pkgs.stdenv.mkDerivation {
-        pname = "IonUpdate";
-        meta.mainProgram = "ion-update";
-        version = "0.1.0";
-        src = ./.;
-        dontBuild = true;
-        #
-        installPhase = ''
-          moduleDir="$out/module"
-          mkdir -p "$moduleDir"
-          cp IonUpdate.ps1 IonUpdate.psd1 IonUpdate.psm1 "$moduleDir/"
-          mkdir -p "$out/bin"
-          cat > "$out/bin/ion-update" << EOF
-          #!/usr/bin/env bash
-          export PSModulePath="$moduleDir:\$PSModulePath"
-          ${getExe quietPowershell} -NonInteractive -Command "$moduleDir/IonUpdate.ps1 \$@"
-          EOF
-          chmod +x "$out/bin/ion-update"
-        '';
+      # Supported Architectures
+      archs = [
+        "x86_64-linux"
+        "aarch64-linux"
+      ];
+      # multi arch packager
+      packager = sys: {
+        ${sys}.default =
+          let
+            pkgs = import nixpkgs {
+              system = sys;
+              overlays = [ qpwsh.overlays.default ];
+            };
+          in
+          with lib;
+          pkgs.stdenv.mkDerivation {
+            pname = "IonUpdate";
+            meta.mainProgram = "ion-update";
+            version = "0.1.0";
+            src = ./.;
+            dontBuild = true;
+            #
+            installPhase = ''
+              moduleDir="$out/module"
+              mkdir -p "$moduleDir"
+              cp IonUpdate.ps1 IonUpdate.psd1 IonUpdate.psm1 "$moduleDir/"
+              mkdir -p "$out/bin"
+              cat > "$out/bin/ion-update" << EOF
+              #!/usr/bin/env bash
+              export PSModulePath="$moduleDir:\$PSModulePath"
+              ${getExe pkgs.quietPowershell} -NonInteractive -NoLogo -NoProfile -Command "$moduleDir/IonUpdate.ps1 \$@"
+              EOF
+              chmod +x "$out/bin/ion-update"
+            '';
+          };
       };
       #
+    in
+    {
       #
-      nixosModules.package =
-        {
-          pkgs,
-          ...
-        }:
-        let
-          pkgsystem = pkgs.stdenv.hostPlatform.system;
-          mainpackage = self.packages.${pkgsystem}.default;
-        in
-        {
-          # config to be implemented via the `options`
-          config.environment.systemPackages = [
-            mainpackage
-          ];
-        };
+      # Builds packages for each arch provided
+      # (') is required so foldl will be strict and not lazy
+      packages = builtins.foldl' (acc: x: acc // x) { } (map packager archs);
       #
+      # Nixpkgs overlay for the package(s)
+      overlays.default = final: prev: {
+        ion-update = self.packages.${final.system}.default;
+      };
       #
+      # Default option to import package into the env
+      # and import service options
       nixosModules.default =
         {
           config,
@@ -72,13 +82,12 @@
           ...
         }:
         let
-          pkgsystem = pkgs.stdenv.hostPlatform.system;
-          mainpackage = self.packages.${pkgsystem}.default;
           ion-nixops = config.services.ion-update;
         in
+        with lib;
         {
           # Options for services overlay
-          options.services.ion-update = with lib; {
+          options.services.ion-update = {
             enable = mkEnableOption "IonUpdate scheduled service";
             keyPath = mkOption {
               type = types.str;
@@ -98,13 +107,11 @@
           };
           #
           # config to be implemented via the `options`
-          config = lib.mkIf ion-nixops.enable {
-            # Imports package and runs the install steps
-            environment.systemPackages = [
-              mainpackage
-            ];
+          config = mkIf ion-nixops.enable {
+            # Imports the overlay to put sonarr-cleanup in pkgs
+            nixpkgs.overlays = [ self.overlays.default ];
             # rootless identity
-            # Requires home dir as this needs an interactive shell
+            # Requires home dir and needs an interactive shell
             # If we can port `ionmod` module to a derivation, this can go back to `isSystemUser = true;`
             # tested again on 5/17. Old me was not bluffing. issue with install-module use.
             users = {
@@ -117,36 +124,22 @@
                 linger = true;
                 createHome = true;
                 home = "/var/ion-update";
-                subUidRanges = [
-                  {
-                    startUid = 100000;
-                    count = 65536;
-                  }
-                ];
-                subGidRanges = [
-                  {
-                    startGid = 100000;
-                    count = 65536;
-                  }
-                ];
               };
             };
             # systemd service
             systemd = {
               services.ion-update = {
                 description = "IonUpdate service";
-                path = [
-                  quietPowershell
-                ];
                 serviceConfig = with lib; {
                   Type = "oneshot";
                   User = "ion-update";
                   Group = "ion-update";
                   ExecStart = ''
-                    ${getExe mainpackage} -Create -KeyPath ${ion-nixops.keyPath} -Records "('${concatStringsSep "', '" ion-nixops.records}')"
+                    ${getExe pkgs.ion-update} -Create -KeyPath ${ion-nixops.keyPath} -Records "('${concatStringsSep "', '" ion-nixops.records}')"
                   '';
                 };
               };
+              # timer for service triggering
               timers.ion-update = {
                 description = "IonUpdate timer";
                 wantedBy = [ "timers.target" ];
