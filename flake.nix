@@ -6,7 +6,7 @@
       url = "github:jimurrito/nixos-test-vm";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    # can not use espresso as it will cause a recursive error for users who use sonarr-cleanup via espresso
+    # can not use espresso as it will cause a recursive error for users who use this app via espresso
     qpwsh = {
       url = "git+https://forgejo.immerhouse.com/jimurrito/quiet-powershell";
       inputs.nixpkgs.follows = "nixpkgs";
