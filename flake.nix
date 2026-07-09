@@ -8,7 +8,7 @@
     };
     # can not use espresso as it will cause a recursive error for users who use this app via espresso
     qpwsh = {
-      url = "git+https://forgejo.immerhouse.com/jimurrito/quiet-powershell";
+      url = "github:jimurrito/quiet-powershell";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
@@ -74,90 +74,21 @@
       #
       # Default option to import package into the env
       # and import service options
-      nixosModules.default =
-        {
-          config,
-          lib,
-          pkgs,
-          ...
-        }:
-        let
-          ion-nixops = config.services.ion-update;
-        in
-        with lib;
-        {
-          # Options for services overlay
-          options.services.ion-update = {
-            enable = mkEnableOption "IonUpdate scheduled service";
-            keyPath = mkOption {
-              type = types.str;
-              default = "/root/ionos-key";
-              description = "Path to the public and private key provided by IONOS. Should be in '<PublicKey>.<Secret>' format.";
-            };
-            records = mkOption {
-              type = types.listOf types.str;
-              default = [ ];
-              description = "List of DNS records that need tracking";
-            };
-            interval = mkOption {
-              type = types.str;
-              default = "daily";
-              description = "How often to run IonUpdate. Accepts any systemd calendar expression.";
-            };
-          };
-          #
-          # config to be implemented via the `options`
-          config = mkIf ion-nixops.enable {
-            # Imports the overlay to put sonarr-cleanup in pkgs
-            nixpkgs.overlays = [ self.overlays.default ];
-            # rootless identity
-            # Requires home dir and needs an interactive shell
-            # If we can port `ionmod` module to a derivation, this can go back to `isSystemUser = true;`
-            # tested again on 5/17. Old me was not bluffing. issue with install-module use.
-            users = {
-              groups.ion-update = { };
-              users.ion-update = {
-                enable = true;
-                group = "ion-update";
-                # isSystemUser = true;
-                isNormalUser = true;
-                linger = true;
-                createHome = true;
-                home = "/var/ion-update";
-              };
-            };
-            # systemd service
-            systemd = {
-              services.ion-update = {
-                description = "IonUpdate service";
-                serviceConfig = with lib; {
-                  Type = "oneshot";
-                  User = "ion-update";
-                  Group = "ion-update";
-                  ExecStart = ''
-                    ${getExe pkgs.ion-update} -Create -KeyPath ${ion-nixops.keyPath} -Records "('${concatStringsSep "', '" ion-nixops.records}')"
-                  '';
-                };
-              };
-              # timer for service triggering
-              timers.ion-update = {
-                description = "IonUpdate timer";
-                wantedBy = [ "timers.target" ];
-                timerConfig = {
-                  OnCalendar = ion-nixops.interval;
-                  Persistent = true;
-                };
-              };
-            };
-          };
-        };
+      nixosModules.default.imports = [
+        ./src/options.nix
+        ./src/config.nix
+        { nixpkgs.overlays = [ self.overlays.default ]; }
+      ];
       #
       #
       # TestVM
-      nixosConfigurations =
-        let
-          testConfig =
-            { ... }:
+      nixosConfigurations = {
+        test-vm = nixpkgs.lib.nixosSystem {
+          system = "x86_64-linux";
+          modules = [
+            (import test-vm.baselineConfig {})
+            self.nixosModules.default
+            # test config
             {
               services.ion-update = {
                 enable = true;
@@ -167,19 +98,9 @@
                 ];
                 interval = "daily";
               };
-            };
-        in
-        {
-          test-vm = nixpkgs.lib.nixosSystem {
-            system = "x86_64-linux";
-            modules = [
-              test-vm.baselineConfig
-              # test config
-              self.nixosModules.default
-              testConfig
-            ];
-          };
+            }
+          ];
         };
-      #
+      };
     };
 }
